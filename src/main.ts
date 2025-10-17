@@ -21,6 +21,8 @@ document.body.appendChild(clearBtn);
 // --- Data Structures ---
 let currentLine: Array<{ x: number; y: number }> = [];
 const displayList: Array<Array<{ x: number; y: number }>> = [];
+const redoStack: Array<Array<{ x: number; y: number }>> = [];
+let pendingRedraw = false;
 
 // --- Observer Pattern ---
 // Redraw whenever drawing changes
@@ -38,6 +40,7 @@ canvas.addEventListener("drawing-changed", () => {
 });
 
 // --- Mouse Event Handlers ---
+// --- Mouse Event Handlers ---
 canvas.addEventListener("mousedown", (e) => {
   currentLine = [{ x: e.offsetX, y: e.offsetY }];
 });
@@ -45,8 +48,14 @@ canvas.addEventListener("mousedown", (e) => {
 canvas.addEventListener("mousemove", (e) => {
   if (!currentLine.length) return;
   currentLine.push({ x: e.offsetX, y: e.offsetY });
-  // Notify that drawing has changed
-  canvas.dispatchEvent(new Event("drawing-changed"));
+  // Throttle redraw
+  if (!pendingRedraw) {
+    pendingRedraw = true;
+    queueMicrotask(() => {
+      canvas.dispatchEvent(new Event("drawing-changed"));
+      pendingRedraw = false;
+    });
+  }
 });
 
 canvas.addEventListener("mouseup", () => {
@@ -54,6 +63,7 @@ canvas.addEventListener("mouseup", () => {
     displayList.push(currentLine);
   }
   currentLine = [];
+  canvas.dispatchEvent(new Event("drawing-changed"));
 });
 
 canvas.addEventListener("mouseleave", () => {
@@ -61,7 +71,34 @@ canvas.addEventListener("mouseleave", () => {
     displayList.push(currentLine);
   }
   currentLine = [];
+  canvas.dispatchEvent(new Event("drawing-changed"));
 });
+
+// --- undo button ---
+const undoBtn = document.createElement("button");
+undoBtn.textContent = "Undo";
+undoBtn.addEventListener("click", () => {
+  if (displayList.length > 0) {
+    const lastLine = displayList.pop();
+    if (lastLine) {
+      redoStack.push(lastLine);
+      canvas.dispatchEvent(new Event("drawing-changed"));
+    }
+  }
+});
+document.body.appendChild(undoBtn);
+
+// --- redo button ---
+const redoBtn = document.createElement("button");
+redoBtn.textContent = "Redo";
+redoBtn.addEventListener("click", () => {
+  if (redoStack.length > 0) {
+    const line = redoStack.pop()!;
+    displayList.push(line);
+    canvas.dispatchEvent(new Event("drawing-changed"));
+  }
+});
+document.body.appendChild(redoBtn);
 
 // --- Clear Button ---
 clearBtn.addEventListener("click", () => {
