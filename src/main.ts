@@ -1,52 +1,70 @@
 import "./style.css";
 
-// Create app title
+// --- Setup ---
 const title = document.createElement("h1");
 title.textContent = "Sticker Sketchpad";
 document.body.appendChild(title);
 
-// Create canvas
 const canvas = document.createElement("canvas");
-canvas.width = 800;
-canvas.height = 400;
+canvas.width = 256;
+canvas.height = 256;
 canvas.id = "sketchpad";
 document.body.appendChild(canvas);
 
-// Get 2D drawing context
 const ctx = canvas.getContext("2d");
-if (!ctx) {
-  console.error("2D context not supported");
-  throw new Error("Canvas 2D context not available");
-}
+if (!ctx) throw new Error("2D context not available");
 
-// Drawing state
-let isDrawing = false;
+const clearBtn = document.createElement("button");
+clearBtn.textContent = "Clear";
+document.body.appendChild(clearBtn);
 
-// Mouse event handlers
+// --- Data Structures ---
+let currentLine: Array<{ x: number; y: number }> = [];
+const displayList: Array<Array<{ x: number; y: number }>> = [];
+
+// --- Observer Pattern ---
+// Redraw whenever drawing changes
+canvas.addEventListener("drawing-changed", () => {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  displayList.forEach((line) => {
+    if (line.length === 0) return;
+    ctx.beginPath();
+    ctx.moveTo(line[0].x, line[0].y);
+    for (let i = 1; i < line.length; i++) {
+      ctx.lineTo(line[i].x, line[i].y);
+    }
+    ctx.stroke();
+  });
+});
+
+// --- Mouse Event Handlers ---
 canvas.addEventListener("mousedown", (e) => {
-  isDrawing = true;
-  ctx.beginPath();
-  ctx.moveTo(e.offsetX, e.offsetY);
+  currentLine = [{ x: e.offsetX, y: e.offsetY }];
 });
 
 canvas.addEventListener("mousemove", (e) => {
-  if (!isDrawing) return;
-  ctx.lineTo(e.offsetX, e.offsetY);
-  ctx.stroke();
+  if (!currentLine.length) return;
+  currentLine.push({ x: e.offsetX, y: e.offsetY });
+  // Notify that drawing has changed
+  canvas.dispatchEvent(new Event("drawing-changed"));
 });
 
 canvas.addEventListener("mouseup", () => {
-  isDrawing = false;
+  if (currentLine.length > 1) {
+    displayList.push(currentLine);
+  }
+  currentLine = [];
 });
 
 canvas.addEventListener("mouseleave", () => {
-  isDrawing = false;
+  if (currentLine.length > 1) {
+    displayList.push(currentLine);
+  }
+  currentLine = [];
 });
 
-// Add Clear button
-const clearBtn = document.createElement("button");
-clearBtn.textContent = "Clear";
+// --- Clear Button ---
 clearBtn.addEventListener("click", () => {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  displayList.length = 0;
+  canvas.dispatchEvent(new Event("drawing-changed"));
 });
-document.body.appendChild(clearBtn);
