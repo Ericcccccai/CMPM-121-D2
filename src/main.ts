@@ -1,6 +1,6 @@
 import "./style.css";
 
-// --- Setup ---
+// === Setup ===
 const title = document.createElement("h1");
 title.textContent = "Sticker Sketchpad";
 document.body.appendChild(title);
@@ -12,31 +12,38 @@ canvas.id = "sketchpad";
 document.body.appendChild(canvas);
 
 const ctx = canvas.getContext("2d")!;
-if (!ctx) throw new Error("2D context not available");
+const controls: HTMLButtonElement[] = [];
 
-// --- Buttons ---
-const clearBtn = document.createElement("button");
-clearBtn.textContent = "Clear";
-document.body.appendChild(clearBtn);
+// --- Utility for adding buttons ---
+function makeButton(label: string): HTMLButtonElement {
+  const btn = document.createElement("button");
+  btn.textContent = label;
+  document.body.appendChild(btn);
+  controls.push(btn);
+  return btn;
+}
 
-const undoBtn = document.createElement("button");
-undoBtn.textContent = "Undo";
-document.body.appendChild(undoBtn);
+// === Buttons ===
+const clearBtn = makeButton("Clear");
+const undoBtn = makeButton("Undo");
+const redoBtn = makeButton("Redo");
 
-const redoBtn = document.createElement("button");
-redoBtn.textContent = "Redo";
-document.body.appendChild(redoBtn);
+const thinBtn = makeButton("Thin Marker");
+const thickBtn = makeButton("Thick Marker");
 
-// --- Tool Buttons (Step 6) ---
-const thinBtn = document.createElement("button");
-thinBtn.textContent = "Thin Marker";
-document.body.appendChild(thinBtn);
+// --- Sticker Buttons (Step 8) ---
+const stickerButtons: HTMLButtonElement[] = [];
+const stickerChoices = ["🦋", "🐞", "🌼"];
+stickerChoices.forEach((emoji) => {
+  const btn = makeButton(emoji);
+  stickerButtons.push(btn);
+});
 
-const thickBtn = document.createElement("button");
-thickBtn.textContent = "Thick Marker";
-document.body.appendChild(thickBtn);
+// === Command Interfaces ===
+interface Draggable {
+  drag(x: number, y: number): void;
+}
 
-// --- Interfaces & Classes ---
 interface Command {
   display(ctx: CanvasRenderingContext2D): void;
 }
@@ -46,19 +53,15 @@ interface MarkerStyle {
   color: string;
 }
 
-class MarkerCommand implements Command {
+// === Marker Command ===
+class MarkerCommand implements Command, Draggable {
   private points: { x: number; y: number }[] = [];
-  private style: MarkerStyle;
-
-  constructor(style: MarkerStyle, startX: number, startY: number) {
-    this.style = style;
+  constructor(private style: MarkerStyle, startX: number, startY: number) {
     this.points.push({ x: startX, y: startY });
   }
-
   drag(x: number, y: number) {
     this.points.push({ x, y });
   }
-
   display(ctx: CanvasRenderingContext2D) {
     if (this.points.length < 1) return;
     ctx.beginPath();
@@ -74,7 +77,31 @@ class MarkerCommand implements Command {
   }
 }
 
-// --- Step 7: Tool Preview Command ---
+// === Sticker Command (new) ===
+class StickerCommand implements Command, Draggable {
+  constructor(
+    private emoji: string,
+    private x: number,
+    private y: number,
+    private scale = 1,
+  ) {}
+  drag(x: number, y: number) {
+    this.x = x;
+    this.y = y;
+  }
+  display(ctx: CanvasRenderingContext2D) {
+    ctx.save();
+    ctx.font = `${
+      32 * this.scale
+    }px system-ui, Apple Color Emoji, Segoe UI Emoji`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(this.emoji, this.x, this.y);
+    ctx.restore();
+  }
+}
+
+// === Preview Commands ===
 class MarkerPreview implements Command {
   constructor(
     private style: MarkerStyle,
@@ -87,7 +114,7 @@ class MarkerPreview implements Command {
   }
   display(ctx: CanvasRenderingContext2D) {
     ctx.save();
-    ctx.globalAlpha = 0.35; // semi-transparent
+    ctx.globalAlpha = 0.35;
     ctx.beginPath();
     ctx.arc(this.x, this.y, this.style.thickness / 2, 0, Math.PI * 2);
     ctx.fillStyle = this.style.color;
@@ -96,46 +123,68 @@ class MarkerPreview implements Command {
   }
 }
 
-// --- Data Structures ---
-const displayList: Command[] = [];
-const redoStack: Command[] = [];
-let currentCommand: MarkerCommand | null = null;
-let preview: MarkerPreview | null = null;
-let pendingRedraw = false;
-
-// --- Current Tool Style ---
-let currentStyle: MarkerStyle = { thickness: 2, color: "#000000" };
-
-function setActiveToolButton(activeBtn: HTMLButtonElement) {
-  [thinBtn, thickBtn].forEach((btn) => btn.classList.remove("selectedTool"));
-  activeBtn.classList.add("selectedTool");
+class StickerPreview implements Command {
+  constructor(private emoji: string, private x: number, private y: number) {}
+  setPosition(x: number, y: number) {
+    this.x = x;
+    this.y = y;
+  }
+  display(ctx: CanvasRenderingContext2D) {
+    ctx.save();
+    ctx.globalAlpha = 0.35;
+    ctx.font = `32px system-ui, Apple Color Emoji, Segoe UI Emoji`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(this.emoji, this.x, this.y);
+    ctx.restore();
+  }
 }
 
-// --- Redraw Handler (Observer Pattern) ---
+// === State ===
+const displayList: Command[] = [];
+const redoStack: Command[] = [];
+let currentCommand: Command | null = null;
+let preview: Command | null = null;
+let pendingRedraw = false;
+
+// --- Tool Mode ---
+type Tool = "marker" | "sticker";
+let currentTool: Tool = "marker";
+let currentStyle: MarkerStyle = { thickness: 2, color: "#000" };
+let currentSticker = "🦋";
+
+// === Helpers ===
+function setActiveToolButton(btn: HTMLButtonElement) {
+  controls.forEach((b) => b.classList.remove("selectedTool"));
+  btn.classList.add("selectedTool");
+}
+
 function redraw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  // Draw all commands
   for (const cmd of displayList) cmd.display(ctx);
-
-  // Draw preview only when mouse is not down
   if (!currentCommand && preview) preview.display(ctx);
 }
 
+// === Events ===
 canvas.addEventListener("drawing-changed", redraw);
 canvas.addEventListener("tool-moved", redraw);
 
-// --- Mouse Event Handlers ---
 canvas.addEventListener("mousedown", (e) => {
-  currentCommand = new MarkerCommand(currentStyle, e.offsetX, e.offsetY);
+  const { offsetX: x, offsetY: y } = e;
+  if (currentTool === "marker") {
+    currentCommand = new MarkerCommand(currentStyle, x, y);
+  } else {
+    currentCommand = new StickerCommand(currentSticker, x, y);
+  }
 });
 
 canvas.addEventListener("mousemove", (e) => {
   const { offsetX: x, offsetY: y } = e;
-
-  // When drawing, keep adding points
-  if (currentCommand) {
-    currentCommand.drag(x, y);
+  if (
+    currentCommand instanceof MarkerCommand ||
+    currentCommand instanceof StickerCommand
+  ) {
+    (currentCommand as Draggable).drag?.(x, y);
     if (!pendingRedraw) {
       pendingRedraw = true;
       queueMicrotask(() => {
@@ -144,9 +193,18 @@ canvas.addEventListener("mousemove", (e) => {
       });
     }
   } else {
-    // When not drawing, update preview position
-    if (!preview) preview = new MarkerPreview(currentStyle, x, y);
-    preview.setPosition(x, y);
+    // preview update
+    if (currentTool === "marker") {
+      if (!(preview instanceof MarkerPreview)) {
+        preview = new MarkerPreview(currentStyle, x, y);
+      }
+      (preview as MarkerPreview).setPosition(x, y);
+    } else {
+      if (!(preview instanceof StickerPreview)) {
+        preview = new StickerPreview(currentSticker, x, y);
+      }
+      (preview as StickerPreview).setPosition(x, y);
+    }
     canvas.dispatchEvent(new Event("tool-moved"));
   }
 });
@@ -165,25 +223,21 @@ canvas.addEventListener("mouseleave", () => {
     currentCommand = null;
     canvas.dispatchEvent(new Event("drawing-changed"));
   }
-  preview = null; // hide preview when cursor leaves canvas
+  preview = null;
   canvas.dispatchEvent(new Event("tool-moved"));
 });
 
-// --- Undo / Redo / Clear Buttons ---
+// === Undo / Redo / Clear ===
 undoBtn.addEventListener("click", () => {
-  if (displayList.length > 0) {
-    const last = displayList.pop();
-    if (last) redoStack.push(last);
-    canvas.dispatchEvent(new Event("drawing-changed"));
-  }
+  const last = displayList.pop();
+  if (last) redoStack.push(last);
+  canvas.dispatchEvent(new Event("drawing-changed"));
 });
 
 redoBtn.addEventListener("click", () => {
-  if (redoStack.length > 0) {
-    const restored = redoStack.pop()!;
-    displayList.push(restored);
-    canvas.dispatchEvent(new Event("drawing-changed"));
-  }
+  const restored = redoStack.pop();
+  if (restored) displayList.push(restored);
+  canvas.dispatchEvent(new Event("drawing-changed"));
 });
 
 clearBtn.addEventListener("click", () => {
@@ -192,19 +246,26 @@ clearBtn.addEventListener("click", () => {
   canvas.dispatchEvent(new Event("drawing-changed"));
 });
 
-// --- Tool Buttons ---
+// === Tool Button Logic ===
 thinBtn.addEventListener("click", () => {
-  currentStyle = { thickness: 2, color: "#000000" };
+  currentTool = "marker";
+  currentStyle = { thickness: 2, color: "#000" };
   setActiveToolButton(thinBtn);
 });
-
 thickBtn.addEventListener("click", () => {
-  currentStyle = { thickness: 8, color: "#000000" };
+  currentTool = "marker";
+  currentStyle = { thickness: 8, color: "#000" };
   setActiveToolButton(thickBtn);
 });
+stickerButtons.forEach((btn, i) => {
+  btn.addEventListener("click", () => {
+    currentTool = "sticker";
+    currentSticker = stickerChoices[i];
+    setActiveToolButton(btn);
+  });
+});
 
-// --- Initialize ---
+// === Initialize ===
 setActiveToolButton(thinBtn);
 canvas.dispatchEvent(new Event("drawing-changed"));
-
-console.log("Step 7 complete: Tool preview implemented ✅");
+console.log("Step 8 complete: Multiple stickers added ✅");

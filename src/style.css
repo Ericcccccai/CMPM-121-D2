@@ -33,3 +33,9 @@ h1 {
   text-align: center;
   font-family: Arial, sans-serif;
 }
+
+.selectedTool {
+  background-color: #4caf50;
+  color: white;
+  border-color: #3d8b40;
+}
