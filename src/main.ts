@@ -14,7 +14,7 @@ document.body.appendChild(canvas);
 const ctx = canvas.getContext("2d");
 if (!ctx) throw new Error("2D context not available");
 
-// --- Buttons ---
+// --- Buttons ----
 const clearBtn = document.createElement("button");
 clearBtn.textContent = "Clear";
 document.body.appendChild(clearBtn);
