@@ -14,41 +14,70 @@ document.body.appendChild(canvas);
 const ctx = canvas.getContext("2d");
 if (!ctx) throw new Error("2D context not available");
 
+// --- Buttons ---
 const clearBtn = document.createElement("button");
 clearBtn.textContent = "Clear";
 document.body.appendChild(clearBtn);
 
-// --- Data Structures ---
-let currentLine: Array<{ x: number; y: number }> = [];
-const displayList: Array<Array<{ x: number; y: number }>> = [];
-const redoStack: Array<Array<{ x: number; y: number }>> = [];
-let pendingRedraw = false;
+const undoBtn = document.createElement("button");
+undoBtn.textContent = "Undo";
+document.body.appendChild(undoBtn);
 
-// --- Observer Pattern ---
-// Redraw whenever drawing changes
-canvas.addEventListener("drawing-changed", () => {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  displayList.forEach((line) => {
-    if (line.length === 0) return;
+const redoBtn = document.createElement("button");
+redoBtn.textContent = "Redo";
+document.body.appendChild(redoBtn);
+
+// --- Interfaces & Classes (Command Pattern) ---
+interface Command {
+  display(ctx: CanvasRenderingContext2D): void;
+}
+
+class MarkerCommand implements Command {
+  private points: { x: number; y: number }[] = [];
+
+  constructor(startX: number, startY: number) {
+    this.points.push({ x: startX, y: startY });
+  }
+
+  drag(x: number, y: number) {
+    this.points.push({ x, y });
+  }
+
+  display(ctx: CanvasRenderingContext2D) {
+    if (this.points.length < 1) return;
     ctx.beginPath();
-    ctx.moveTo(line[0].x, line[0].y);
-    for (let i = 1; i < line.length; i++) {
-      ctx.lineTo(line[i].x, line[i].y);
+    ctx.moveTo(this.points[0].x, this.points[0].y);
+    for (let i = 1; i < this.points.length; i++) {
+      ctx.lineTo(this.points[i].x, this.points[i].y);
     }
     ctx.stroke();
-  });
+  }
+}
+
+// --- Data Structures ---
+const displayList: Command[] = [];
+const redoStack: Command[] = [];
+let currentCommand: MarkerCommand | null = null;
+let pendingRedraw = false;
+
+// --- Observer Pattern (Redraw when drawing changes) ---
+canvas.addEventListener("drawing-changed", () => {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  for (const cmd of displayList) {
+    cmd.display(ctx);
+  }
 });
 
 // --- Mouse Event Handlers ---
-// --- Mouse Event Handlers ---
 canvas.addEventListener("mousedown", (e) => {
-  currentLine = [{ x: e.offsetX, y: e.offsetY }];
+  currentCommand = new MarkerCommand(e.offsetX, e.offsetY);
 });
 
 canvas.addEventListener("mousemove", (e) => {
-  if (!currentLine.length) return;
-  currentLine.push({ x: e.offsetX, y: e.offsetY });
-  // Throttle redraw
+  if (!currentCommand) return;
+  currentCommand.drag(e.offsetX, e.offsetY);
+
+  // Throttle redraws to avoid performance spikes
   if (!pendingRedraw) {
     pendingRedraw = true;
     queueMicrotask(() => {
@@ -59,49 +88,45 @@ canvas.addEventListener("mousemove", (e) => {
 });
 
 canvas.addEventListener("mouseup", () => {
-  if (currentLine.length > 1) {
-    displayList.push(currentLine);
-  }
-  currentLine = [];
-  canvas.dispatchEvent(new Event("drawing-changed"));
-});
-
-canvas.addEventListener("mouseleave", () => {
-  if (currentLine.length > 1) {
-    displayList.push(currentLine);
-  }
-  currentLine = [];
-  canvas.dispatchEvent(new Event("drawing-changed"));
-});
-
-// --- undo button ---
-const undoBtn = document.createElement("button");
-undoBtn.textContent = "Undo";
-undoBtn.addEventListener("click", () => {
-  if (displayList.length > 0) {
-    const lastLine = displayList.pop();
-    if (lastLine) {
-      redoStack.push(lastLine);
-      canvas.dispatchEvent(new Event("drawing-changed"));
-    }
-  }
-});
-document.body.appendChild(undoBtn);
-
-// --- redo button ---
-const redoBtn = document.createElement("button");
-redoBtn.textContent = "Redo";
-redoBtn.addEventListener("click", () => {
-  if (redoStack.length > 0) {
-    const line = redoStack.pop()!;
-    displayList.push(line);
+  if (currentCommand) {
+    displayList.push(currentCommand);
+    currentCommand = null;
     canvas.dispatchEvent(new Event("drawing-changed"));
   }
 });
-document.body.appendChild(redoBtn);
 
-// --- Clear Button ---
+canvas.addEventListener("mouseleave", () => {
+  if (currentCommand) {
+    displayList.push(currentCommand);
+    currentCommand = null;
+    canvas.dispatchEvent(new Event("drawing-changed"));
+  }
+});
+
+// --- Undo / Redo / Clear Buttons ---
+undoBtn.addEventListener("click", () => {
+  if (displayList.length > 0) {
+    const last = displayList.pop();
+    if (last) redoStack.push(last);
+    canvas.dispatchEvent(new Event("drawing-changed"));
+  }
+});
+
+redoBtn.addEventListener("click", () => {
+  if (redoStack.length > 0) {
+    const restored = redoStack.pop()!;
+    displayList.push(restored);
+    canvas.dispatchEvent(new Event("drawing-changed"));
+  }
+});
+
 clearBtn.addEventListener("click", () => {
   displayList.length = 0;
+  redoStack.length = 0;
   canvas.dispatchEvent(new Event("drawing-changed"));
 });
+
+// --- Initial Paint ---
+canvas.dispatchEvent(new Event("drawing-changed"));
+
+console.log("Step 5 complete: Refactored to use Command pattern ✅");
