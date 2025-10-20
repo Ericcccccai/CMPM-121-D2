@@ -14,7 +14,7 @@ document.body.appendChild(canvas);
 const ctx = canvas.getContext("2d");
 if (!ctx) throw new Error("2D context not available");
 
-// --- Buttons ----
+// --- Buttons ---
 const clearBtn = document.createElement("button");
 clearBtn.textContent = "Clear";
 document.body.appendChild(clearBtn);
@@ -27,15 +27,31 @@ const redoBtn = document.createElement("button");
 redoBtn.textContent = "Redo";
 document.body.appendChild(redoBtn);
 
+// --- Step 6: Marker Tool Buttons ---
+const thinBtn = document.createElement("button");
+thinBtn.textContent = "Thin Marker";
+document.body.appendChild(thinBtn);
+
+const thickBtn = document.createElement("button");
+thickBtn.textContent = "Thick Marker";
+document.body.appendChild(thickBtn);
+
 // --- Interfaces & Classes (Command Pattern) ---
 interface Command {
   display(ctx: CanvasRenderingContext2D): void;
 }
 
+interface MarkerStyle {
+  thickness: number;
+  color: string;
+}
+
 class MarkerCommand implements Command {
   private points: { x: number; y: number }[] = [];
+  private style: MarkerStyle;
 
-  constructor(startX: number, startY: number) {
+  constructor(style: MarkerStyle, startX: number, startY: number) {
+    this.style = style;
     this.points.push({ x: startX, y: startY });
   }
 
@@ -46,6 +62,10 @@ class MarkerCommand implements Command {
   display(ctx: CanvasRenderingContext2D) {
     if (this.points.length < 1) return;
     ctx.beginPath();
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.lineWidth = this.style.thickness;
+    ctx.strokeStyle = this.style.color;
     ctx.moveTo(this.points[0].x, this.points[0].y);
     for (let i = 1; i < this.points.length; i++) {
       ctx.lineTo(this.points[i].x, this.points[i].y);
@@ -60,7 +80,15 @@ const redoStack: Command[] = [];
 let currentCommand: MarkerCommand | null = null;
 let pendingRedraw = false;
 
-// --- Observer Pattern (Redraw when drawing changes) ---
+// --- Current Tool Style ---
+let currentStyle: MarkerStyle = { thickness: 2, color: "#000000" };
+
+function setActiveToolButton(activeBtn: HTMLButtonElement) {
+  [thinBtn, thickBtn].forEach((btn) => btn.classList.remove("selectedTool"));
+  activeBtn.classList.add("selectedTool");
+}
+
+// --- Observer Pattern ---
 canvas.addEventListener("drawing-changed", () => {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   for (const cmd of displayList) {
@@ -70,14 +98,14 @@ canvas.addEventListener("drawing-changed", () => {
 
 // --- Mouse Event Handlers ---
 canvas.addEventListener("mousedown", (e) => {
-  currentCommand = new MarkerCommand(e.offsetX, e.offsetY);
+  currentCommand = new MarkerCommand(currentStyle, e.offsetX, e.offsetY);
 });
 
 canvas.addEventListener("mousemove", (e) => {
   if (!currentCommand) return;
   currentCommand.drag(e.offsetX, e.offsetY);
 
-  // Throttle redraws to avoid performance spikes
+  // Throttle redraws
   if (!pendingRedraw) {
     pendingRedraw = true;
     queueMicrotask(() => {
@@ -126,7 +154,19 @@ clearBtn.addEventListener("click", () => {
   canvas.dispatchEvent(new Event("drawing-changed"));
 });
 
-// --- Initial Paint ---
+// --- Tool Buttons (Step 6 functionality) ---
+thinBtn.addEventListener("click", () => {
+  currentStyle = { thickness: 2, color: "#000000" };
+  setActiveToolButton(thinBtn);
+});
+
+thickBtn.addEventListener("click", () => {
+  currentStyle = { thickness: 8, color: "#000000" };
+  setActiveToolButton(thickBtn);
+});
+
+// --- Initial Defaults ---
+setActiveToolButton(thinBtn);
 canvas.dispatchEvent(new Event("drawing-changed"));
 
-console.log("Step 5 complete: Refactored to use Command pattern ✅");
+console.log("Step 6 complete: Multiple marker tools added ✅");
