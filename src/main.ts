@@ -6,8 +6,8 @@ title.textContent = "Sticker Sketchpad";
 document.body.appendChild(title);
 
 const canvas = document.createElement("canvas");
-canvas.width = 256;
-canvas.height = 256;
+canvas.width = 512;
+canvas.height = 512;
 canvas.id = "sketchpad";
 document.body.appendChild(canvas);
 
@@ -15,34 +15,49 @@ const ctx = canvas.getContext("2d")!;
 const controls: HTMLButtonElement[] = [];
 
 // --- Utility for adding buttons ---
-function makeButton(label: string): HTMLButtonElement {
+function makeButton(
+  label: string,
+  parent: HTMLElement = document.body,
+): HTMLButtonElement {
   const btn = document.createElement("button");
   btn.textContent = label;
-  document.body.appendChild(btn);
+  parent.appendChild(btn);
   controls.push(btn);
   return btn;
 }
 
+// === UI Containers ===
+const controlBar = document.createElement("div");
+controlBar.className = "control-bar";
+document.body.appendChild(controlBar);
+
+const markerGroup = document.createElement("div");
+markerGroup.className = "button-group";
+controlBar.appendChild(markerGroup);
+
+const stickerGroup = document.createElement("div");
+stickerGroup.className = "button-group";
+controlBar.appendChild(stickerGroup);
+
 // === Buttons ===
-const clearBtn = makeButton("Clear");
-const undoBtn = makeButton("Undo");
-const redoBtn = makeButton("Redo");
+const clearBtn = makeButton("Clear", markerGroup);
+const undoBtn = makeButton("Undo", markerGroup);
+const redoBtn = makeButton("Redo", markerGroup);
+const exportBtn = makeButton("Export", markerGroup);
 
-const thinBtn = makeButton("Thin Marker");
-const thickBtn = makeButton("Thick Marker");
-
-const exportBtn = makeButton("Export");
+const thinBtn = makeButton("Thin Marker", markerGroup);
+const thickBtn = makeButton("Thick Marker", markerGroup);
 
 // --- Sticker Buttons (Step 8) ---
 const stickerButtons: HTMLButtonElement[] = [];
 const stickerChoices = ["🦋", "🐞", "🌼"];
 stickerChoices.forEach((emoji) => {
-  const btn = makeButton(emoji);
+  const btn = makeButton(emoji, stickerGroup);
   stickerButtons.push(btn);
 });
 
 // --- Custom Sticker Button (Step 9) ---
-const customBtn = makeButton("➕ Custom Sticker");
+const customBtn = makeButton("➕ Custom Sticker", stickerGroup);
 customBtn.addEventListener("click", () => {
   const userInput = prompt("Enter your custom sticker (emoji or text):", "🧽");
   if (userInput) {
@@ -295,14 +310,15 @@ exportBtn.addEventListener("click", () => {
 // === Tool Button Logic ===
 thinBtn.addEventListener("click", () => {
   currentTool = "marker";
-  currentStyle = { thickness: 2, color: "#000" };
+  currentStyle = { thickness: 3, color: "#222" }; // slightly thicker + darker
   setActiveToolButton(thinBtn);
 });
 thickBtn.addEventListener("click", () => {
   currentTool = "marker";
-  currentStyle = { thickness: 8, color: "#000" };
+  currentStyle = { thickness: 10, color: "#222" };
   setActiveToolButton(thickBtn);
 });
+
 stickerButtons.forEach((btn, i) => {
   btn.addEventListener("click", () => {
     currentTool = "sticker";
