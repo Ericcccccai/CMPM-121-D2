@@ -48,7 +48,7 @@ const exportBtn = makeButton("Export", markerGroup);
 const thinBtn = makeButton("Thin Marker", markerGroup);
 const thickBtn = makeButton("Thick Marker", markerGroup);
 
-// --- Sticker Buttons (Step 8) ---
+// --- Sticker Buttons ---
 const stickerButtons: HTMLButtonElement[] = [];
 const stickerChoices = ["🦋", "🐞", "🌼"];
 stickerChoices.forEach((emoji) => {
@@ -56,19 +56,19 @@ stickerChoices.forEach((emoji) => {
   stickerButtons.push(btn);
 });
 
-// --- Custom Sticker Button (Step 9) ---
+// --- Custom Sticker Button ---
 const customBtn = makeButton("➕ Custom Sticker", stickerGroup);
 customBtn.addEventListener("click", () => {
   const userInput = prompt("Enter your custom sticker (emoji or text):", "🧽");
   if (userInput) {
-    // add to sticker list
+    // Add to sticker list
     stickerChoices.push(userInput);
 
-    // create new button
-    const newBtn = makeButton(userInput);
+    // Create new button
+    const newBtn = makeButton(userInput, stickerGroup);
     stickerButtons.push(newBtn);
 
-    // make it work like others
+    // Make it work like others
     newBtn.addEventListener("click", () => {
       currentTool = "sticker";
       currentSticker = userInput;
@@ -115,26 +115,32 @@ class MarkerCommand implements Command, Draggable {
   }
 }
 
-// === Sticker Command (new) ===
+// === Sticker Command (Step 12: random rotation) ===
 class StickerCommand implements Command, Draggable {
+  private rotation: number;
   constructor(
     private emoji: string,
     private x: number,
     private y: number,
     private scale = 1,
-  ) {}
+  ) {
+    // Random rotation between -15° and +15°
+    this.rotation = (Math.random() - 0.5) * 30;
+  }
   drag(x: number, y: number) {
     this.x = x;
     this.y = y;
   }
   display(ctx: CanvasRenderingContext2D) {
     ctx.save();
+    ctx.translate(this.x, this.y);
+    ctx.rotate((this.rotation * Math.PI) / 180);
     ctx.font = `${
       32 * this.scale
     }px system-ui, Apple Color Emoji, Segoe UI Emoji`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(this.emoji, this.x, this.y);
+    ctx.fillText(this.emoji, 0, 0);
     ctx.restore();
   }
 }
@@ -284,16 +290,16 @@ clearBtn.addEventListener("click", () => {
   canvas.dispatchEvent(new Event("drawing-changed"));
 });
 
-// === Export Button (Step 10) ===
+// === Export Button ===
 exportBtn.addEventListener("click", () => {
   // Create a 4x-larger canvas
   const exportCanvas = document.createElement("canvas");
-  exportCanvas.width = 1024;
-  exportCanvas.height = 1024;
+  exportCanvas.width = canvas.width * 2;
+  exportCanvas.height = canvas.height * 2;
   const exportCtx = exportCanvas.getContext("2d")!;
 
-  // Scale drawing operations (4x)
-  exportCtx.scale(4, 4);
+  // Scale drawing operations (2x)
+  exportCtx.scale(2, 2);
 
   // Redraw all saved commands at higher resolution
   for (const cmd of displayList) {
@@ -307,15 +313,21 @@ exportBtn.addEventListener("click", () => {
   link.click();
 });
 
+// === Random Color Helper (Step 12) ===
+function randomColor(): string {
+  const hue = Math.floor(Math.random() * 360);
+  return `hsl(${hue}, 80%, 30%)`;
+}
+
 // === Tool Button Logic ===
 thinBtn.addEventListener("click", () => {
   currentTool = "marker";
-  currentStyle = { thickness: 3, color: "#222" }; // slightly thicker + darker
+  currentStyle = { thickness: 3, color: randomColor() }; // random color each time
   setActiveToolButton(thinBtn);
 });
 thickBtn.addEventListener("click", () => {
   currentTool = "marker";
-  currentStyle = { thickness: 10, color: "#222" };
+  currentStyle = { thickness: 10, color: randomColor() }; // random color each time
   setActiveToolButton(thickBtn);
 });
 
@@ -330,4 +342,4 @@ stickerButtons.forEach((btn, i) => {
 // === Initialize ===
 setActiveToolButton(thinBtn);
 canvas.dispatchEvent(new Event("drawing-changed"));
-console.log("Step 8 complete: Multiple stickers added ✅");
+console.log("Step 12 complete: random color + rotation ✅");
