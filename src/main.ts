@@ -39,6 +39,27 @@ stickerChoices.forEach((emoji) => {
   stickerButtons.push(btn);
 });
 
+// --- Custom Sticker Button (Step 9) ---
+const customBtn = makeButton("➕ Custom Sticker");
+customBtn.addEventListener("click", () => {
+  const userInput = prompt("Enter your custom sticker (emoji or text):", "🧽");
+  if (userInput) {
+    // add to sticker list
+    stickerChoices.push(userInput);
+
+    // create new button
+    const newBtn = makeButton(userInput);
+    stickerButtons.push(newBtn);
+
+    // make it work like others
+    newBtn.addEventListener("click", () => {
+      currentTool = "sticker";
+      currentSticker = userInput;
+      setActiveToolButton(newBtn);
+    });
+  }
+});
+
 // === Command Interfaces ===
 interface Draggable {
   drag(x: number, y: number): void;
