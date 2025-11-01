@@ -31,6 +31,8 @@ const redoBtn = makeButton("Redo");
 const thinBtn = makeButton("Thin Marker");
 const thickBtn = makeButton("Thick Marker");
 
+const exportBtn = makeButton("Export");
+
 // --- Sticker Buttons (Step 8) ---
 const stickerButtons: HTMLButtonElement[] = [];
 const stickerChoices = ["🦋", "🐞", "🌼"];
@@ -265,6 +267,29 @@ clearBtn.addEventListener("click", () => {
   displayList.length = 0;
   redoStack.length = 0;
   canvas.dispatchEvent(new Event("drawing-changed"));
+});
+
+// === Export Button (Step 10) ===
+exportBtn.addEventListener("click", () => {
+  // Create a 4x-larger canvas
+  const exportCanvas = document.createElement("canvas");
+  exportCanvas.width = 1024;
+  exportCanvas.height = 1024;
+  const exportCtx = exportCanvas.getContext("2d")!;
+
+  // Scale drawing operations (4x)
+  exportCtx.scale(4, 4);
+
+  // Redraw all saved commands at higher resolution
+  for (const cmd of displayList) {
+    cmd.display(exportCtx);
+  }
+
+  // Trigger file download
+  const link = document.createElement("a");
+  link.href = exportCanvas.toDataURL("image/png");
+  link.download = "sketchpad.png";
+  link.click();
 });
 
 // === Tool Button Logic ===
